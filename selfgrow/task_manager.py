@@ -5,6 +5,8 @@ Manages the lifecycle of tasks: initial generation, retrieval, and refinement us
 """
 from .openai_client import OpenAIClient
 from .memory import Memory
+import os
+import subprocess
 import re
 import json
 
@@ -98,10 +100,23 @@ class TaskManager:
         Generate follow-up tasks based on the last task and its result.
         Uses function-calling to get a structured task list first, then falls back to text parsing.
         """
+        # Prepare context: last task result and recent code diff
         system_prompt = self.agent_config.get("initial_prompt", "")
+        # Attempt to get diff of last commit
+        try:
+            import subprocess
+            diff_proc = subprocess.run(
+                ["git", "diff", "HEAD~1", "HEAD"],
+                cwd=os.getcwd(), capture_output=True, text=True, check=True
+            )
+            recent_diff = diff_proc.stdout
+        except Exception:
+            recent_diff = ""
+        # Build user prompt with result and diff context
         user_prompt = (
             f"Last task: {previous_task_description}\n"
             f"Result:\n{previous_task_result}\n\n"
+            f"Recent changes (diff):\n{recent_diff}\n"
             "Provide the next development tasks as a JSON array under 'tasks'."
         )
         function_def = {
