@@ -9,6 +9,7 @@ import json
 from typing import Optional
 from datetime import datetime
 from .openai_client import OpenAIClient
+import re
 
 class CodeExecutor:
     """
@@ -45,6 +46,23 @@ class CodeExecutor:
         Raises:
             RuntimeError: If no valid function_call or JSON parse error.
         """
+        # If task is a local fallback 'create file' command, handle directly
+        m = re.match(r"create file (.+) with content '(.+)'", task_description, re.IGNORECASE)
+        if m:
+            file_rel, content = m.groups()
+            file_path = os.path.join(self.work_directory, file_rel)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            # Commit fallback file creation
+            # Stage and commit all changes to capture new and modified files
+            subprocess.run(['git', 'add', '-A'], cwd=self.work_directory, check=True)
+            commit_msg = f"Create {file_rel} (fallback)"[:50]
+            subprocess.run(['git', 'commit', '-a', '-m', commit_msg], cwd=self.work_directory, check=True)
+            # Push if configured
+            if self.git_remote:
+                subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+            return f"Created file {file_rel} with content."
         # Define function schema for file changes
         functions = [
             {
@@ -100,11 +118,28 @@ class CodeExecutor:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(change['content'])
             applied_files.append(change['path'])
-        # Commit changes
+        # Commit file changes
         subprocess.run(['git', 'add'] + applied_files, cwd=self.work_directory, check=True)
         commit_msg = f"AI: {task_description}"[:50]
         subprocess.run(['git', 'commit', '-m', commit_msg], cwd=self.work_directory, check=True)
-        # Push if configured
+        # Run test suite to validate changes
+        try:
+            test_proc = subprocess.run(
+                ['pytest', '-q'],
+                cwd=self.work_directory,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            # Tests failed: revert commit
+            subprocess.run(
+                ['git', 'reset', '--hard', 'HEAD~1'],
+                cwd=self.work_directory,
+                check=True
+            )
+            raise RuntimeError(f"Tests failed for task '{task_description}':\n{e.stdout}\n{e.stderr}")
+        # Push commit if configured
         if self.git_remote:
             subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
-        return f"Applied changes to: {', '.join(applied_files)}"
+        return f"Applied changes to: {', '.join(applied_files)}; tests passed"

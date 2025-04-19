@@ -6,6 +6,7 @@ Manages the lifecycle of tasks: initial generation, retrieval, and refinement us
 from .openai_client import OpenAIClient
 from .memory import Memory
 import re
+import json
 
 class TaskManager:
     """
@@ -30,33 +31,53 @@ class TaskManager:
         self.agent_config = agent_config
     def generate_initial_tasks(self) -> None:
         """
-        Generate the initial batch of tasks based on the agent's initial prompt.
-        Parses the model's response as a newline-separated list of tasks
-        and stores each in memory.
+        Generate the initial batch of tasks.
+        - If memory is empty and 'initial_task' is configured, add it.
+        - Otherwise, request a structured JSON list via the 'generate_tasks' function.
         """
-        # Build messages to solicit a clean list of tasks
-        """
-        Generate the initial batch of actionable code-change tasks.
-        """
+        # Seed fallback initial task if none exist
+        if not self.memory.get_pending_tasks():
+            fallback = self.agent_config.get("initial_task")
+            if fallback:
+                self.memory.add_task(fallback)
+                return
+        # Function schema for generating tasks
         system_prompt = self.agent_config.get("initial_prompt", "")
-        user_prompt = (
-            "Based on your initial directive, provide a newline-separated list of "
-            "short, actionable code-change tasks (e.g., 'Refactor X for readability'). "
-            "Do not include explanations."
-        )
+        user_prompt = "Provide the next development tasks as a JSON array under 'tasks'."
+        function_def = {
+            "name": "generate_tasks",
+            "description": "Returns the next set of tasks as a list of strings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["tasks"]
+            }
+        }
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        response_content = self.client.chat(messages)
-        # Split and clean each task description
-        for line in response_content.split("\n"):
+        # Invoke AI with function definitions
+        msg = self.client.chat(messages, functions=[function_def])
+        func_call = getattr(msg, 'function_call', None)
+        # Parse function_call if present
+        if func_call and hasattr(func_call, 'arguments'):
+            try:
+                payload = json.loads(func_call.arguments)
+                for task in payload.get('tasks', []):
+                    self.memory.add_task(task)
+                return
+            except Exception:
+                pass
+        # Fallback: parse as newline-separated text
+        text = getattr(msg, 'content', '') or ''
+        for line in text.split("\n"):
             desc = line.strip()
             if not desc:
                 continue
-            # Remove leading numbers or bullet characters
             desc = re.sub(r'^[\s\d\-\*\.\)]+', '', desc)
-            # Remove any markdown asterisks and trim whitespace
             desc = desc.replace('*', '').strip()
             self.memory.add_task(desc)
     def get_next_task(self):
@@ -74,27 +95,44 @@ class TaskManager:
         return task_id, task_description
     def refine_tasks(self, previous_task_description: str, previous_task_result: str) -> None:
         """
-        Use the AI client to generate follow-up tasks based on the result
-        of the previous task and add them to memory.
-
-        Args:
-            previous_task_description: The description of the task just executed.
-            previous_task_result: The result or output from executing that task.
+        Generate follow-up tasks based on the last task and its result.
+        Uses function-calling to get a structured task list first, then falls back to text parsing.
         """
         system_prompt = self.agent_config.get("initial_prompt", "")
         user_prompt = (
             f"Last task: {previous_task_description}\n"
             f"Result:\n{previous_task_result}\n\n"
-            "Based on this outcome, list the next short, actionable code-change tasks "
-            "as a newline-separated list. Do not include explanations."
+            "Provide the next development tasks as a JSON array under 'tasks'."
         )
+        function_def = {
+            "name": "generate_tasks",
+            "description": "Returns the next set of tasks as a list of strings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tasks": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["tasks"]
+            }
+        }
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": user_prompt}
         ]
-        response_content = self.client.chat(messages)
-        # Split and clean new task descriptions
-        for line in response_content.split("\n"):
+        # AI call with function schema
+        msg = self.client.chat(messages, functions=[function_def])
+        func_call = getattr(msg, 'function_call', None)
+        if func_call and hasattr(func_call, 'arguments'):
+            try:
+                payload = json.loads(func_call.arguments)
+                for task in payload.get('tasks', []):
+                    self.memory.add_task(task)
+                return
+            except Exception:
+                pass
+        # Fallback: parse plain text
+        text = getattr(msg, 'content', '') or ''
+        for line in text.split("\n"):
             desc = line.strip()
             if not desc:
                 continue

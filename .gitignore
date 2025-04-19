@@ -1,2 +1,4 @@
+# SQLite memory database
+selfgrow_memory.db
 __pycache__/
 .env

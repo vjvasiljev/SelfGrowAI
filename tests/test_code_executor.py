@@ -74,3 +74,27 @@ def test_execute_creates_files_and_commits(tmp_path, stub_subprocess):
     # Commit message should start with 'AI: Test task'
     commit_calls = [call for call in stub_subprocess if call[:3] == ["git", "commit", "-m"]]
     assert any("AI: Test task" in call[3] for call in commit_calls)
+    # Verify pytest was invoked to run tests
+    assert ["pytest", "-q"] in stub_subprocess
+    # Now test fallback 'create file' path
+    # Clear recorded calls
+    stub_subprocess.clear()
+    # Create executor and run fallback task
+    executor2 = CodeExecutor(
+        openai_client=DummyClient([]),
+        work_directory=str(tmp_path),
+        git_remote=None,
+        git_branch="main"
+    )
+    fallback_result = executor2.execute("create file alpha.txt with content 'XYZ'")
+    # Verify fallback file creation
+    alpha = tmp_path / "alpha.txt"
+    assert alpha.exists()
+    assert alpha.read_text() == 'XYZ'
+    assert "Created file alpha.txt" in fallback_result
+    # Verify subprocess.run for add and commit
+    # Now uses 'git add -A' to stage all changes
+    assert ["git", "add", "-A"] in stub_subprocess
+    # Commit should use '-a -m'
+    commit_calls = [c for c in stub_subprocess if c[:4] == ["git", "commit", "-a", "-m"]]
+    assert commit_calls and "Create alpha.txt (fallback)" in commit_calls[0][4]

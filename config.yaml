@@ -5,12 +5,14 @@ openai:
 agent:
   name: GrowAI
   initial_prompt: "You are GrowAI, an AI that recursively improves and extends its codebase. Start by analyzing your codebase and proposing enhancements."
+  # For local fallback: initial file creation task
+  initial_task: "create file demo.txt with content 'Hello from GrowAI!'"
   max_iterations: 100
 
 version_control:
   # Name of the Git remote to push to (e.g., 'origin')
   remote_name: origin
   # SSH or HTTPS URL of your GitHub repository
-  remote_url: git@github.com:vjvasiljev/SelfGrowAI.git
+  remote_url: https://github.com/vjvasiljev/SelfGrowAI.gitco
   # Branch to push changes to
   branch: main
