@@ -3,3 +3,4 @@ python-dotenv
 PyYAML
 pytest
 typer
+black

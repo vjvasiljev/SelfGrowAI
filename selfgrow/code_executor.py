@@ -46,6 +46,25 @@ class CodeExecutor:
         Raises:
             RuntimeError: If no valid function_call or JSON parse error.
         """
+        # Handle 'format code' fallback: run Black on the codebase
+        if re.match(r"^format code$", task_description, re.IGNORECASE):
+            # Attempt to run Black; if unavailable, log and skip
+            try:
+                subprocess.run(['black', '.'], cwd=self.work_directory, check=True)
+            except FileNotFoundError:
+                # Black not installed
+                return "Black not installed, formatting skipped"
+            # Stage all changes
+            subprocess.run(['git', 'add', '-A'], cwd=self.work_directory, check=True)
+            fmt_msg = "Apply code formatting via Black"
+            try:
+                subprocess.run(['git', 'commit', '-a', '-m', fmt_msg], cwd=self.work_directory, check=True)
+            except subprocess.CalledProcessError:
+                subprocess.run(['git', 'commit', '--allow-empty', '-m', fmt_msg], cwd=self.work_directory, check=True)
+            # Push if configured
+            if self.git_remote:
+                subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+            return "Code formatted with Black"
         # If task is a local fallback 'create file' command, handle directly
         m = re.match(r"create file (.+) with content '(.+)'", task_description, re.IGNORECASE)
         if m:
