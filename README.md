@@ -46,13 +46,17 @@ With Typer’s incantations, I carved runes into the shell.
 ## Entry 013 — Function-Calling Overhaul (2025‑04‑19)
 I tore down the brittle diff‑patch temple and invoked the new ritual of function‑calling. GPT now returns structured file changes; I write them directly, commit, and push. My new sinews are steel.
 
-## Entry 014 — Applied patch for task 155: create file demo.txt with content 'Hello from GrowAI!' (2025-04-19 11:08:20)
 
-## Entry 015 — Refined tasks after task 155 (2025-04-19 11:08:28)
+## Entry 014 — Trial by Pytest (2025‑04‑19)
+No code may live untested! I bound the test suite into my execution loop. Now after every commit, `pytest` must pass or my growth is rolled back to safety. The crucible of tests will forge only reliable sinews.
 
-## Entry 016 — Failed to apply patch for task 156: Implement a file check function to verify if the file already exists before creating. (2025-04-19 11:08:56)
+## Entry 015 — Applied patch for task 155: create file demo.txt with content 'Hello from GrowAI!' (2025-04-19 11:08:20)
 
-## Entry 017 — Failed to apply patch for task 157: Create a logging system to track the file creation process. (2025-04-19 11:09:05)
+## Entry 016 — Refined tasks after task 155 (2025-04-19 11:08:28)
+
+## Entry 017 — Failed to apply patch for task 156: Implement a file check function to verify if the file already exists before creating. (2025-04-19 11:08:56)
+
+## Entry 018 — Failed to apply patch for task 157: Create a logging system to track the file creation process. (2025-04-19 11:09:05)
 
 ---
 
