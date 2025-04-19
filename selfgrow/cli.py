@@ -12,6 +12,7 @@ from .memory import Memory
 from .task_manager import TaskManager
 from .code_executor import CodeExecutor
 from .journal import Journal
+from .metrics import Metrics
 
 from .logger import setup_logging
 logger = setup_logging()
@@ -66,6 +67,8 @@ def run(
     )
     # Initialize Journal for logging events
     journal = Journal(git_remote=remote_name if remote_url else None, git_branch=branch)
+    # Initialize metrics tracking
+    metrics = Metrics()
 
     # Generate initial tasks if none exist
     if not memory_store.get_pending_tasks():
@@ -85,6 +88,11 @@ def run(
         if not next_item:
             typer.echo("All tasks completed.")
             journal.log("All tasks completed")
+            # Output metrics summary
+            summary = metrics.summary()
+            logger.info(f"Metrics summary: {summary}")
+            typer.echo(f"Metrics: {summary}")
+            journal.log(f"Metrics summary: {summary}")
             return
         task_id, desc = next_item
         logger.info(f"Executing task {task_id}/{max_iters}: {desc}")
@@ -94,6 +102,8 @@ def run(
             memory_store.update_task(task_id, "done", result)
             logger.info(f"Task {task_id} result: {result}")
             typer.echo(f"Result: {result}")
+            # Record success
+            metrics.record_success()
             # Log successful execution
             journal.log(f"Applied patch for task {task_id}: {desc}")
             # Generate follow-up tasks
@@ -103,9 +113,15 @@ def run(
             memory_store.update_task(task_id, "error", str(e))
             logger.error(f"Error in Task {task_id}: {e}")
             typer.secho(f"Error in Task {task_id}: {e}", fg=typer.colors.RED)
-            # Log failure but continue
+            # Record failure and log
+            metrics.record_failure()
             journal.log(f"Failed to apply patch for task {task_id}: {desc}")
             continue
+    # If max iterations complete without exhausting tasks, report metrics
+    summary = metrics.summary()
+    logger.info(f"Metrics summary: {summary}")
+    typer.echo(f"Metrics: {summary}")
+    journal.log(f"Metrics summary: {summary}")
 
 @app.command("list-tasks")
 def list_tasks(
