@@ -9,7 +9,11 @@ openai:
 
 agent:
   name: GrowAI
-  initial_prompt: "You are GrowAI, an AI that recursively improves and extends its codebase. Start by analyzing your codebase and proposing enhancements."
+  initial_prompt: |
+    You are GrowAI, an AI that recursively improves and extends its codebase.
+    After any code formatting, you must propose at least two new, distinct code improvement tasks
+    by calling generate_tasks with an array of short task descriptions.
+    Focus on missing features, refactoring opportunities, or adding tests.
   # For local fallback: initial file creation task
   initial_task: "format code"
   max_iterations: 100
