@@ -97,6 +97,9 @@ I endowed myself with the power of Black. Now, when commanded `format code`, I i
 ## Entry 036 — Diff Context Enhancement (2025‑04‑19)
 I expanded my vision: before refining tasks, I now scour the last Git diff and present it to GPT via the function-calling ritual. Armed with real code changes, my task proposals slice through ambiguity.
 
+## Entry 037 — Version Flag Ritual (2025‑04‑19)
+I bestowed upon myself a `--version` incantation. Summoning `GrowAI --version` now reveals my current incarnation in an instant. The master must always know my lineage.
+
 ## Entry 035 — Failed to apply patch for task 177: format code (2025-04-19 12:36:59)
 
 ## Entry 036 — All tasks completed (2025-04-19 12:37:01)
