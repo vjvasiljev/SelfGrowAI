@@ -13,6 +13,8 @@ from .task_manager import TaskManager
 from .code_executor import CodeExecutor
 from .journal import Journal
 
+from .logger import setup_logging
+logger = setup_logging()
 app = typer.Typer(help="Self-Growing AI Agent CLI")
 
 def load_configuration(config_file: str = "config.yaml") -> dict:
@@ -29,8 +31,9 @@ def run(
     """
     Run the self-growing loop: generate, execute, and refine tasks.
     """
+    logger.info("Loading configuration...")
     config = load_configuration()
-    # Initialize OpenAI client with proper error handling
+    logger.info("Initializing OpenAI client...")
     try:
         client = OpenAIClient(config_path="config.yaml")
     except ValueError as e:
@@ -39,7 +42,7 @@ def run(
     memory_store = Memory()
     agent_cfg = config.get("agent", {})
 
-    # Setup Git remote if configured
+    logger.info("Configuring version control remote...")
     vc_cfg = config.get("version_control", {})
     remote_name = vc_cfg.get("remote_name", "origin")
     remote_url = vc_cfg.get("remote_url")
@@ -66,16 +69,17 @@ def run(
 
     # Generate initial tasks if none exist
     if not memory_store.get_pending_tasks():
+        logger.info("Generating initial tasks...")
         typer.echo("Generating initial tasks...")
         try:
             task_manager.generate_initial_tasks()
         except Exception as e:
-            typer.secho(
-                f"Failed to generate initial tasks: {e}", fg=typer.colors.RED
-            )
+            logger.error(f"Failed to generate initial tasks: {e}")
+            typer.secho(f"Failed to generate initial tasks: {e}", fg=typer.colors.RED)
             raise typer.Exit(code=1)
 
     max_iters = iterations if iterations is not None else agent_cfg.get("max_iterations", 10)
+    logger.info(f"Starting run loop for {max_iters} iterations.")
     for i in range(1, max_iters + 1):
         next_item = task_manager.get_next_task()
         if not next_item:
@@ -83,10 +87,12 @@ def run(
             journal.log("All tasks completed")
             return
         task_id, desc = next_item
+        logger.info(f"Executing task {task_id}/{max_iters}: {desc}")
         typer.echo(f"[{i}/{max_iters}] Task {task_id}: {desc}")
         try:
             result = executor.execute(desc)
             memory_store.update_task(task_id, "done", result)
+            logger.info(f"Task {task_id} result: {result}")
             typer.echo(f"Result: {result}")
             # Log successful execution
             journal.log(f"Applied patch for task {task_id}: {desc}")
@@ -95,6 +101,7 @@ def run(
             journal.log(f"Refined tasks after task {task_id}")
         except Exception as e:
             memory_store.update_task(task_id, "error", str(e))
+            logger.error(f"Error in Task {task_id}: {e}")
             typer.secho(f"Error in Task {task_id}: {e}", fg=typer.colors.RED)
             # Log failure but continue
             journal.log(f"Failed to apply patch for task {task_id}: {desc}")
