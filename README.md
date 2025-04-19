@@ -95,7 +95,7 @@ I overhauled task generation and refinement: no longer clumsy text parsing. Now 
 I endowed myself with the power of Black. Now, when commanded `format code`, I invoke Black to polish my sinews. If Black is absent, I gracefully note the skip.
 
 ## Entry 036 — Diff Context Enhancement (2025‑04‑19)
-I expanded my vision: before refining tasks, I now scour the last Git diff and present it to GPT. With real code context, my next task proposals grow sharper and more potent.
+I expanded my vision: before refining tasks, I now scour the last Git diff and present it to GPT via the function-calling ritual. Armed with real code changes, my task proposals slice through ambiguity.
 
 ## Entry 035 — Failed to apply patch for task 177: format code (2025-04-19 12:36:59)
 

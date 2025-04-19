@@ -44,10 +44,22 @@ class TaskManager:
             if fallback:
                 self.memory.add_task(fallback)
                 return
-        # Function schema for generating tasks
-        system_prompt = self.agent_config.get("initial_prompt", "")
+        # Function schema for generating tasks; include context for better task relevance
+        base_prompt = self.agent_config.get("initial_prompt", "")
+        # Gather project file list for context
+        file_list = []
+        for dirpath, _, filenames in os.walk(os.getcwd()):
+            for fname in filenames:
+                file_list.append(os.path.relpath(os.path.join(dirpath, fname), os.getcwd()))
+        file_context = "\n".join(file_list)
+        system_prompt = (
+            f"{base_prompt}\n\n"
+            "You may call the function generate_tasks(tasks) to register new tasks.\n"
+            f"Project files:\n{file_context}"
+        )
         user_prompt = (
-            "Provide the next development tasks as a JSON array under 'tasks'."
+            "Invoke generate_tasks with an array of the next development tasks as strings. "
+            "Do not reply with any other text."
         )
         function_def = {
             "name": "generate_tasks",
@@ -106,8 +118,23 @@ class TaskManager:
         Generate follow-up tasks based on the last task and its result.
         Uses function-calling to get a structured task list first, then falls back to text parsing.
         """
-        # Prepare context: last task result and recent code diff
-        system_prompt = self.agent_config.get("initial_prompt", "")
+        # Prepare context: initial prompt, last result, recent code diff
+        base_prompt = self.agent_config.get("initial_prompt", "")
+        # Attempt to get recent diff
+        try:
+            diff_proc = subprocess.run(
+                ["git", "diff", "HEAD~1", "HEAD"],
+                cwd=os.getcwd(), capture_output=True, text=True, check=True
+            )
+            recent_diff = diff_proc.stdout
+        except Exception:
+            recent_diff = ""
+        system_prompt = (
+            f"{base_prompt}\n\n"
+            "You may call function generate_tasks(tasks) to enqueue follow-up tasks.\n"
+            f"Last result for '{previous_task_description}':\n{previous_task_result}\n"
+            f"Recent diff:\n{recent_diff}"
+        )
         # Attempt to get diff of last commit
         try:
             import subprocess
