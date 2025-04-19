@@ -55,10 +55,14 @@ class CodeExecutor:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
             # Commit fallback file creation
-            # Stage and commit all changes to capture new and modified files
+            # Stage all changes to capture new and modified files
             subprocess.run(['git', 'add', '-A'], cwd=self.work_directory, check=True)
             commit_msg = f"Create {file_rel} (fallback)"[:50]
-            subprocess.run(['git', 'commit', '-a', '-m', commit_msg], cwd=self.work_directory, check=True)
+            try:
+                subprocess.run(['git', 'commit', '-a', '-m', commit_msg], cwd=self.work_directory, check=True)
+            except subprocess.CalledProcessError:
+                # If no changes to commit (file existed and content identical), create empty commit
+                subprocess.run(['git', 'commit', '--allow-empty', '-m', commit_msg], cwd=self.work_directory, check=True)
             # Push if configured
             if self.git_remote:
                 subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
