@@ -50,7 +50,9 @@ class TaskManager:
         file_list = []
         for dirpath, _, filenames in os.walk(os.getcwd()):
             for fname in filenames:
-                file_list.append(os.path.relpath(os.path.join(dirpath, fname), os.getcwd()))
+                file_list.append(
+                    os.path.relpath(os.path.join(dirpath, fname), os.getcwd())
+                )
         file_context = "\n".join(file_list)
         system_prompt = (
             f"{base_prompt}\n\n"
@@ -124,7 +126,10 @@ class TaskManager:
         try:
             diff_proc = subprocess.run(
                 ["git", "diff", "HEAD~1", "HEAD"],
-                cwd=os.getcwd(), capture_output=True, text=True, check=True
+                cwd=os.getcwd(),
+                capture_output=True,
+                text=True,
+                check=True,
             )
             recent_diff = diff_proc.stdout
         except Exception:
