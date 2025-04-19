@@ -3,13 +3,16 @@ OpenAI Client Wrapper
 
 Provides a simple interface for sending chat requests to OpenAI's ChatCompletion API using a configured model.
 """
+
 import os
 import openai
 from dotenv import load_dotenv
 import yaml
 
+
 class OpenAIClient:
     """Client to interact with OpenAI's ChatCompletion API."""
+
     def __init__(self, config_path: str = "config.yaml"):
         """
         Load configuration and initialize the OpenAI API client.
@@ -28,7 +31,7 @@ class OpenAIClient:
             # Expand placeholders like ${OPENAI_API_KEY}
             expanded = os.path.expandvars(str(raw_key))
             # If expansion succeeded (no leftover '$'), use it
-            if expanded and '$' not in expanded:
+            if expanded and "$" not in expanded:
                 api_key = expanded
         # Fallback to environment variable
         if not api_key:
@@ -38,14 +41,12 @@ class OpenAIClient:
                 "OpenAI API key not found. Please set in config.yaml or via OPENAI_API_KEY env var"
             )
         openai.api_key = api_key
-        # Model to use for chat completions
+        # Default model to use if stage-specific model is not set
         self.model = cfg.get("openai", {}).get("model", "gpt-4")
-    def chat(
-        self,
-        messages: list,
-        functions: list = None,
-        **kwargs
-    ):
+        # Stage-to-model mapping for cost optimization
+        self.models_map = cfg.get("openai", {}).get("models", {}) or {}
+
+    def chat(self, messages: list, functions: list = None, stage: str = None, **kwargs):
         """
         Send messages to the ChatCompletion API.
 
@@ -61,15 +62,15 @@ class OpenAIClient:
             If functions is None: str of the assistant's reply content.
             Else: the Message object including potential function_call.
         """
-        request_args = {
-            "model": self.model,
-            "messages": messages,
-            **kwargs,
-        }
+        # Determine which model to use: stage-specific or default
+        model_to_use = self.models_map.get(stage, self.model) if stage else self.model
+        request_args = {"model": model_to_use, "messages": messages, **kwargs}
         if functions is not None:
             request_args["functions"] = functions
         response = openai.chat.completions.create(**request_args)
         message = response.choices[0].message
+        # If no functions provided, return text content
         if functions is None:
             return message.content
+        # Else return full message for function_call handling
         return message

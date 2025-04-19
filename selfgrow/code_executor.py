@@ -3,6 +3,7 @@ Code Executor Module
 
 Executes tasks by generating file changes via function-calling and applying them.
 """
+
 import os
 import subprocess
 import json
@@ -11,16 +12,18 @@ from datetime import datetime
 from .openai_client import OpenAIClient
 import re
 
+
 class CodeExecutor:
     """
     Executes tasks by generating file changes via the AI client and applying them.
     """
+
     def __init__(
         self,
         openai_client: OpenAIClient,
         work_directory: Optional[str] = None,
         git_remote: Optional[str] = None,
-        git_branch: str = "main"
+        git_branch: str = "main",
     ):
         """
         Initialize the executor.
@@ -50,41 +53,89 @@ class CodeExecutor:
         if re.match(r"^format code$", task_description, re.IGNORECASE):
             # Attempt to run Black; if unavailable, log and skip
             try:
-                subprocess.run(['black', '.'], cwd=self.work_directory, check=True)
+                subprocess.run(["black", "."], cwd=self.work_directory, check=True)
             except FileNotFoundError:
                 # Black not installed
                 return "Black not installed, formatting skipped"
             # Stage all changes
-            subprocess.run(['git', 'add', '-A'], cwd=self.work_directory, check=True)
+            subprocess.run(["git", "add", "-A"], cwd=self.work_directory, check=True)
             fmt_msg = "Apply code formatting via Black"
             try:
-                subprocess.run(['git', 'commit', '-a', '-m', fmt_msg], cwd=self.work_directory, check=True)
+                subprocess.run(
+                    ["git", "commit", "-a", "-m", fmt_msg],
+                    cwd=self.work_directory,
+                    check=True,
+                )
             except subprocess.CalledProcessError:
-                subprocess.run(['git', 'commit', '--allow-empty', '-m', fmt_msg], cwd=self.work_directory, check=True)
+                subprocess.run(
+                    ["git", "commit", "--allow-empty", "-m", fmt_msg],
+                    cwd=self.work_directory,
+                    check=True,
+                )
             # Push if configured
             if self.git_remote:
-                subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+                subprocess.run(
+                    ["git", "push", self.git_remote, self.git_branch],
+                    cwd=self.work_directory,
+                    check=False,
+                )
             return "Code formatted with Black"
+        # Handle 'install black' fallback: install package and commit requirements.txt
+        if re.match(r"^install black", task_description, re.IGNORECASE):
+            # Install via pip
+            subprocess.run(
+                ["pip", "install", "black"], cwd=self.work_directory, check=True
+            )
+            # Stage requirements.txt
+            subprocess.run(
+                ["git", "add", "requirements.txt"], cwd=self.work_directory, check=True
+            )
+            commit_msg = "Install Black (fallback)"
+            subprocess.run(
+                ["git", "commit", "-m", commit_msg], cwd=self.work_directory, check=True
+            )
+            # Push if configured
+            if self.git_remote:
+                subprocess.run(
+                    ["git", "push", self.git_remote, self.git_branch],
+                    cwd=self.work_directory,
+                    check=False,
+                )
+            return "Installed Black via pip"
         # If task is a local fallback 'create file' command, handle directly
-        m = re.match(r"create file (.+) with content '(.+)'", task_description, re.IGNORECASE)
+        m = re.match(
+            r"create file (.+) with content '(.+)'", task_description, re.IGNORECASE
+        )
         if m:
             file_rel, content = m.groups()
             file_path = os.path.join(self.work_directory, file_rel)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             # Commit fallback file creation
             # Stage all changes to capture new and modified files
-            subprocess.run(['git', 'add', '-A'], cwd=self.work_directory, check=True)
+            subprocess.run(["git", "add", "-A"], cwd=self.work_directory, check=True)
             commit_msg = f"Create {file_rel} (fallback)"[:50]
             try:
-                subprocess.run(['git', 'commit', '-a', '-m', commit_msg], cwd=self.work_directory, check=True)
+                subprocess.run(
+                    ["git", "commit", "-a", "-m", commit_msg],
+                    cwd=self.work_directory,
+                    check=True,
+                )
             except subprocess.CalledProcessError:
                 # If no changes to commit (file existed and content identical), create empty commit
-                subprocess.run(['git', 'commit', '--allow-empty', '-m', commit_msg], cwd=self.work_directory, check=True)
+                subprocess.run(
+                    ["git", "commit", "--allow-empty", "-m", commit_msg],
+                    cwd=self.work_directory,
+                    check=True,
+                )
             # Push if configured
             if self.git_remote:
-                subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+                subprocess.run(
+                    ["git", "push", self.git_remote, self.git_branch],
+                    cwd=self.work_directory,
+                    check=False,
+                )
             return f"Created file {file_rel} with content."
         # Define function schema for file changes
         functions = [
@@ -100,14 +151,14 @@ class CodeExecutor:
                                 "type": "object",
                                 "properties": {
                                     "path": {"type": "string"},
-                                    "content": {"type": "string"}
+                                    "content": {"type": "string"},
                                 },
-                                "required": ["path", "content"]
-                            }
+                                "required": ["path", "content"],
+                            },
                         }
                     },
-                    "required": ["changes"]
-                }
+                    "required": ["changes"],
+                },
             }
         ]
         system_prompt = "You are an AI that generates file changes via function call."
@@ -115,54 +166,66 @@ class CodeExecutor:
             f"Task: {task_description}. Provide a function_call to apply_file_changes."
         )
         # Call AI with function definitions
+        # Request file changes via AI function-calling, using 'execution' model for detailed code
         message = self.client.chat(
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
             functions=functions,
-            temperature=0
+            stage="execution",
+            temperature=0,
         )
         # Validate function_call
-        if not hasattr(message, 'function_call') or message.function_call is None:
+        if not hasattr(message, "function_call") or message.function_call is None:
             raise RuntimeError("AI did not return function_call for file changes.")
         # Parse arguments
         try:
             args = json.loads(message.function_call.arguments)
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Invalid JSON in function_call arguments: {e}")
-        changes = args.get('changes')
+        changes = args.get("changes")
         if not isinstance(changes, list) or not changes:
             raise RuntimeError("No file changes provided by AI.")
         applied_files = []
         for change in changes:
-            file_path = os.path.join(self.work_directory, change['path'])
+            file_path = os.path.join(self.work_directory, change["path"])
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(change['content'])
-            applied_files.append(change['path'])
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(change["content"])
+            applied_files.append(change["path"])
         # Commit file changes
-        subprocess.run(['git', 'add'] + applied_files, cwd=self.work_directory, check=True)
+        subprocess.run(
+            ["git", "add"] + applied_files, cwd=self.work_directory, check=True
+        )
         commit_msg = f"AI: {task_description}"[:50]
-        subprocess.run(['git', 'commit', '-m', commit_msg], cwd=self.work_directory, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", commit_msg], cwd=self.work_directory, check=True
+        )
         # Run test suite to validate changes
         try:
             test_proc = subprocess.run(
-                ['pytest', '-q'],
+                ["pytest", "-q"],
                 cwd=self.work_directory,
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
             )
         except subprocess.CalledProcessError as e:
             # Tests failed: revert commit
             subprocess.run(
-                ['git', 'reset', '--hard', 'HEAD~1'],
+                ["git", "reset", "--hard", "HEAD~1"],
                 cwd=self.work_directory,
-                check=True
+                check=True,
             )
-            raise RuntimeError(f"Tests failed for task '{task_description}':\n{e.stdout}\n{e.stderr}")
+            raise RuntimeError(
+                f"Tests failed for task '{task_description}':\n{e.stdout}\n{e.stderr}"
+            )
         # Push commit if configured
         if self.git_remote:
-            subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+            subprocess.run(
+                ["git", "push", self.git_remote, self.git_branch],
+                cwd=self.work_directory,
+                check=False,
+            )
         return f"Applied changes to: {', '.join(applied_files)}; tests passed"

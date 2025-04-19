@@ -1,6 +1,11 @@
 openai:
   api_key: ${OPENAI_API_KEY}
   model: gpt-4
+  # Models for different stages to optimize cost and performance
+  models:
+    planning: gpt-3.5-turbo
+    refinement: gpt-3.5-turbo
+    execution: gpt-4
 
 agent:
   name: GrowAI

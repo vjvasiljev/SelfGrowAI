@@ -1,6 +1,8 @@
 """Entry point for the Self-Growing AI Agent CLI."""
+
 import typer
 from .cli import app
+
 
 def load_configuration(config_file_path: str = "config.yaml") -> dict:
     """
@@ -10,6 +12,7 @@ def load_configuration(config_file_path: str = "config.yaml") -> dict:
         raise FileNotFoundError(f"Configuration file not found: {config_file_path}")
     with open(config_file_path, "r") as config_file:
         return yaml.safe_load(config_file)
+
 
 def main() -> None:
     """
@@ -30,22 +33,19 @@ def main() -> None:
     if remote_url:
         # Add or update Git remote
         existing_remotes = subprocess.run(
-            ["git", "remote"],
-            cwd=os.getcwd(),
-            capture_output=True,
-            text=True
+            ["git", "remote"], cwd=os.getcwd(), capture_output=True, text=True
         ).stdout.split()
         if remote_name not in existing_remotes:
             subprocess.run(
                 ["git", "remote", "add", remote_name, remote_url],
                 cwd=os.getcwd(),
-                check=True
+                check=True,
             )
         else:
             subprocess.run(
                 ["git", "remote", "set-url", remote_name, remote_url],
                 cwd=os.getcwd(),
-                check=True
+                check=True,
             )
     # Initialize executor with AI client and Git settings
     # Git push will only run if a remote_url was provided
@@ -53,7 +53,7 @@ def main() -> None:
         openai_client=client,
         work_directory=None,
         git_remote=remote_name if remote_url else None,
-        git_branch=branch
+        git_branch=branch,
     )
 
     # Generate initial tasks if none exist
@@ -70,7 +70,9 @@ def main() -> None:
             break
 
         task_id, task_description = next_item
-        print(f"[Iteration {iteration + 1}/{max_iterations}] Task {task_id}: {task_description}")
+        print(
+            f"[Iteration {iteration + 1}/{max_iterations}] Task {task_id}: {task_description}"
+        )
         try:
             result_output = executor.execute(task_description)
             memory_store.update_task(task_id, "done", result_output)
@@ -81,6 +83,7 @@ def main() -> None:
             print(f"Error in Task {task_id}: {error}")
 
         iteration += 1
+
 
 if __name__ == "__main__":
     app()

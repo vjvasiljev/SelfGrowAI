@@ -3,17 +3,20 @@ Memory Module
 
 Provides a persistent task memory using a SQLite database to track pending and completed tasks.
 """
+
 import sqlite3
 import threading
 from datetime import datetime
 
 DEFAULT_DB_PATH = "selfgrow_memory.db"
 
+
 class Memory:
     """
     Task memory manager that stores tasks, statuses, and results in SQLite.
     Thread-safe for concurrent access.
     """
+
     _lock = threading.Lock()
 
     def __init__(self, db_path: str = None):
@@ -28,6 +31,7 @@ class Memory:
             db_path = DEFAULT_DB_PATH
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._ensure_tables()
+
     def _ensure_tables(self) -> None:
         """
         Create the tasks table if it does not already exist.
@@ -44,6 +48,7 @@ class Memory:
                 )
                 """
             )
+
     def add_task(self, description: str) -> None:
         """
         Add a new task to the memory with status 'pending'.
@@ -55,8 +60,9 @@ class Memory:
             with self.conn:
                 self.conn.execute(
                     "INSERT INTO tasks (description, status, created_at) VALUES (?, ?, ?)",
-                    (description, "pending", datetime.utcnow().isoformat())
+                    (description, "pending", datetime.utcnow().isoformat()),
                 )
+
     def get_pending_tasks(self) -> list:
         """
         Retrieve all tasks with 'pending' status, ordered by their insertion order.
@@ -69,6 +75,7 @@ class Memory:
             "SELECT id, description FROM tasks WHERE status = 'pending' ORDER BY id"
         )
         return cursor.fetchall()
+
     def update_task(self, task_id: int, status: str, result: str = None) -> None:
         """
         Update the status and optional result of a task.
@@ -82,8 +89,9 @@ class Memory:
             with self.conn:
                 self.conn.execute(
                     "UPDATE tasks SET status = ?, result = ? WHERE id = ?",
-                    (status, result, task_id)
+                    (status, result, task_id),
                 )
+
     def get_tasks_by_status(self, status: str) -> list:
         """
         Retrieve tasks filtered by status.
@@ -97,7 +105,7 @@ class Memory:
         cursor = self.conn.cursor()
         cursor.execute(
             "SELECT id, description, status, result, created_at FROM tasks WHERE status = ? ORDER BY id",  # noqa: E501
-            (status,)
+            (status,),
         )
         return cursor.fetchall()
 

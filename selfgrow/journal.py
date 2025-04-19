@@ -3,18 +3,21 @@ Journal Module
 
 Handles appending entries to the Lab Journal (README.md) and committing them to git.
 """
+
 import re
 import os
 import datetime
 import subprocess
 
 README_PATH = "README.md"
-ENTRY_REGEX = re.compile(r"## Entry (\d+)" )
+ENTRY_REGEX = re.compile(r"## Entry (\d+)")
+
 
 class Journal:
     """
     Append chronicle entries to the Lab Journal in README.md, commit, and push.
     """
+
     def __init__(self, git_remote: str = None, git_branch: str = "main"):
         self.readme_path = README_PATH
         self.git_remote = git_remote
@@ -56,11 +59,7 @@ class Journal:
         if insert_idx is None:
             insert_idx = len(lines)
         # Insert header and a blank line
-        new_lines = (
-            lines[:insert_idx]
-            + [header, "\n"]
-            + lines[insert_idx:]
-        )
+        new_lines = lines[:insert_idx] + [header, "\n"] + lines[insert_idx:]
         # Write back
         with open(self.readme_path, "w", encoding="utf-8") as f:
             f.writelines(new_lines)
@@ -75,7 +74,7 @@ class Journal:
                 subprocess.run(
                     ["git", "push", self.git_remote, self.git_branch],
                     cwd=cwd,
-                    check=True
+                    check=True,
                 )
             except subprocess.CalledProcessError:
                 pass

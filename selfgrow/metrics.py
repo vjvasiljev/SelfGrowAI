@@ -3,12 +3,15 @@ Metrics Module
 
 Tracks execution statistics for GrowAI tasks.
 """
+
 from typing import Dict
+
 
 class Metrics:
     """
     Simple metrics collector for task executions.
     """
+
     def __init__(self):
         self.total_tasks = 0
         self.successful_tasks = 0

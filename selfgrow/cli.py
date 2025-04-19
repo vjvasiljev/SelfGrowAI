@@ -3,6 +3,7 @@ Command-Line Interface for Self-Growing AI Agent
 
 Provides commands to run the agent, inspect task memory, and manage tasks.
 """
+
 import os
 import subprocess
 import yaml
@@ -15,8 +16,10 @@ from .journal import Journal
 from .metrics import Metrics
 
 from .logger import setup_logging
+
 logger = setup_logging()
 app = typer.Typer(help="Self-Growing AI Agent CLI")
+
 
 def load_configuration(config_file: str = "config.yaml") -> dict:
     if not os.path.exists(config_file):
@@ -25,9 +28,12 @@ def load_configuration(config_file: str = "config.yaml") -> dict:
     with open(config_file, "r") as f:
         return yaml.safe_load(f)
 
+
 @app.command()
 def run(
-    iterations: int = typer.Option(None, "-n", "--iterations", help="Max iterations to run")
+    iterations: int = typer.Option(
+        None, "-n", "--iterations", help="Max iterations to run"
+    )
 ):
     """
     Run the self-growing loop: generate, execute, and refine tasks.
@@ -53,9 +59,17 @@ def run(
             ["git", "remote"], cwd=os.getcwd(), capture_output=True, text=True
         ).stdout.split()
         if remote_name not in existing:
-            subprocess.run(["git", "remote", "add", remote_name, remote_url], cwd=os.getcwd(), check=True)
+            subprocess.run(
+                ["git", "remote", "add", remote_name, remote_url],
+                cwd=os.getcwd(),
+                check=True,
+            )
         else:
-            subprocess.run(["git", "remote", "set-url", remote_name, remote_url], cwd=os.getcwd(), check=True)
+            subprocess.run(
+                ["git", "remote", "set-url", remote_name, remote_url],
+                cwd=os.getcwd(),
+                check=True,
+            )
 
     # Initialize the Task Manager and Code Executor
     task_manager = TaskManager(memory_store, client, agent_cfg)
@@ -63,7 +77,7 @@ def run(
         openai_client=client,
         work_directory=None,
         git_remote=remote_name if remote_url else None,
-        git_branch=branch
+        git_branch=branch,
     )
     # Initialize Journal for logging events
     journal = Journal(git_remote=remote_name if remote_url else None, git_branch=branch)
@@ -81,7 +95,9 @@ def run(
             typer.secho(f"Failed to generate initial tasks: {e}", fg=typer.colors.RED)
             raise typer.Exit(code=1)
 
-    max_iters = iterations if iterations is not None else agent_cfg.get("max_iterations", 10)
+    max_iters = (
+        iterations if iterations is not None else agent_cfg.get("max_iterations", 10)
+    )
     logger.info(f"Starting run loop for {max_iters} iterations.")
     for i in range(1, max_iters + 1):
         next_item = task_manager.get_next_task()
@@ -123,9 +139,12 @@ def run(
     typer.echo(f"Metrics: {summary}")
     journal.log(f"Metrics summary: {summary}")
 
+
 @app.command("list-tasks")
 def list_tasks(
-    status: str = typer.Option(None, "-s", "--status", help="Filter by status: pending, done, error")
+    status: str = typer.Option(
+        None, "-s", "--status", help="Filter by status: pending, done, error"
+    )
 ):
     """
     List tasks in memory, optionally filtered by status.
@@ -142,6 +161,7 @@ def list_tasks(
         task_id, desc, stat, result, created = task
         typer.echo(f"[{task_id}] {stat} - {desc} (created at {created})")
 
+
 @app.command("clear-tasks")
 def clear_tasks(
     yes: bool = typer.Option(False, "-y", "--yes", help="Confirm clearing all tasks")
@@ -150,7 +170,9 @@ def clear_tasks(
     Clear all tasks from memory.
     """
     if not yes:
-        confirm = typer.confirm("Are you sure you want to delete all tasks?", abort=True)
+        confirm = typer.confirm(
+            "Are you sure you want to delete all tasks?", abort=True
+        )
     memory_store = Memory()
     memory_store.clear_all_tasks()
     typer.secho("All tasks cleared.", fg=typer.colors.GREEN)
