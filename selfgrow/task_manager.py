@@ -40,7 +40,7 @@ class TaskManager:
         """
         # Seed fallback initial task if none exist
         if not self.memory.get_pending_tasks():
-            fallback = self.agent_config.get("initial_task")
+            fallback = self.agent_config.pop("initial_task", None)
             if fallback:
                 self.memory.add_task(fallback)
                 return
