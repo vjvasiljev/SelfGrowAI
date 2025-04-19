@@ -16,13 +16,16 @@ class Memory:
     """
     _lock = threading.Lock()
 
-    def __init__(self, db_path: str = DEFAULT_DB_PATH):
+    def __init__(self, db_path: str = None):
         """
         Initialize the SQLite connection and ensure required tables exist.
 
         Args:
-            db_path: Path to the SQLite database file.
+            db_path: Optional path to the SQLite database file. If None, uses DEFAULT_DB_PATH.
         """
+        # Determine database path
+        if not db_path:
+            db_path = DEFAULT_DB_PATH
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self._ensure_tables()
     def _ensure_tables(self) -> None:
