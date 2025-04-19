@@ -5,6 +5,7 @@ Manages the lifecycle of tasks: initial generation, retrieval, and refinement us
 """
 from .openai_client import OpenAIClient
 from .memory import Memory
+import re
 
 class TaskManager:
     """
@@ -33,15 +34,31 @@ class TaskManager:
         Parses the model's response as a newline-separated list of tasks
         and stores each in memory.
         """
-        initial_prompt = self.agent_config.get("initial_prompt", "")
-        messages = [{"role": "system", "content": initial_prompt}]
-        response_content = self.client.chat(messages)
-        # Split response by lines to extract individual task descriptions
-        task_descriptions = [
-            line.strip() for line in response_content.split("\n") if line.strip()
+        # Build messages to solicit a clean list of tasks
+        """
+        Generate the initial batch of actionable code-change tasks.
+        """
+        system_prompt = self.agent_config.get("initial_prompt", "")
+        user_prompt = (
+            "Based on your initial directive, provide a newline-separated list of "
+            "short, actionable code-change tasks (e.g., 'Refactor X for readability'). "
+            "Do not include explanations."
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ]
-        for description in task_descriptions:
-            self.memory.add_task(description)
+        response_content = self.client.chat(messages)
+        # Split and clean each task description
+        for line in response_content.split("\n"):
+            desc = line.strip()
+            if not desc:
+                continue
+            # Remove leading numbers or bullet characters
+            desc = re.sub(r'^[\s\d\-\*\.\)]+', '', desc)
+            # Remove any markdown asterisks and trim whitespace
+            desc = desc.replace('*', '').strip()
+            self.memory.add_task(desc)
     def get_next_task(self):
         """
         Retrieve the next pending task from memory.
@@ -68,16 +85,19 @@ class TaskManager:
         user_prompt = (
             f"Last task: {previous_task_description}\n"
             f"Result:\n{previous_task_result}\n\n"
-            "Generate the next tasks to improve the system. Provide a list of "
-            "clear, short task descriptions."
+            "Based on this outcome, list the next short, actionable code-change tasks "
+            "as a newline-separated list. Do not include explanations."
         )
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
         response_content = self.client.chat(messages)
-        new_tasks = [
-            line.strip() for line in response_content.split("\n") if line.strip()
-        ]
-        for description in new_tasks:
-            self.memory.add_task(description)
+        # Split and clean new task descriptions
+        for line in response_content.split("\n"):
+            desc = line.strip()
+            if not desc:
+                continue
+            desc = re.sub(r'^[\s\d\-\*\.\)]+', '', desc)
+            desc = desc.replace('*', '').strip()
+            self.memory.add_task(desc)

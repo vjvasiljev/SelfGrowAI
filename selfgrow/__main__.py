@@ -1,19 +1,6 @@
-"""
-Self-Growing AI Agent Runner
-
-This module serves as the entry point when invoking the agent with:
-    python -m selfgrow
-It loads configuration, initializes components, and executes the recursive loop
-to grow and improve the codebase over time.
-"""
-import os
-import yaml
-import subprocess
-
-from .openai_client import OpenAIClient
-from .memory import Memory
-from .task_manager import TaskManager
-from .code_executor import CodeExecutor
+"""Entry point for the Self-Growing AI Agent CLI."""
+import typer
+from .cli import app
 
 def load_configuration(config_file_path: str = "config.yaml") -> dict:
     """
@@ -96,4 +83,4 @@ def main() -> None:
         iteration += 1
 
 if __name__ == "__main__":
-    main()
+    app()

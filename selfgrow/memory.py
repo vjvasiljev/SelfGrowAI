@@ -81,3 +81,40 @@ class Memory:
                     "UPDATE tasks SET status = ?, result = ? WHERE id = ?",
                     (status, result, task_id)
                 )
+    def get_tasks_by_status(self, status: str) -> list:
+        """
+        Retrieve tasks filtered by status.
+
+        Args:
+            status: Task status to filter on ('pending', 'done', 'error').
+
+        Returns:
+            A list of tuples (id, description, status, result, created_at).
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, description, status, result, created_at FROM tasks WHERE status = ? ORDER BY id",  # noqa: E501
+            (status,)
+        )
+        return cursor.fetchall()
+
+    def get_all_tasks(self) -> list:
+        """
+        Retrieve all tasks in memory, ordered by insertion.
+
+        Returns:
+            A list of tuples (id, description, status, result, created_at).
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, description, status, result, created_at FROM tasks ORDER BY id"
+        )
+        return cursor.fetchall()
+
+    def clear_all_tasks(self) -> None:
+        """
+        Delete all tasks from memory.
+        """
+        with Memory._lock:
+            with self.conn:
+                self.conn.execute("DELETE FROM tasks")

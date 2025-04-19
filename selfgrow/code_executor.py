@@ -1,16 +1,18 @@
 """
 Code Executor Module
 
-Executes tasks by generating or running code changes using AI-generated patches.
+Executes tasks by generating file changes via function-calling and applying them.
 """
 import os
 import subprocess
+import json
 from typing import Optional
+from datetime import datetime
 from .openai_client import OpenAIClient
 
 class CodeExecutor:
     """
-    Executes tasks by generating unified diff patches via the AI client and applying them.
+    Executes tasks by generating file changes via the AI client and applying them.
     """
     def __init__(
         self,
@@ -20,11 +22,13 @@ class CodeExecutor:
         git_branch: str = "main"
     ):
         """
-        Initialize the executor with an AI client and working directory.
+        Initialize the executor.
 
         Args:
-            openai_client: Instance of OpenAIClient for patch generation.
-            work_directory: Directory in which to apply code changes. Defaults to current working directory.
+            openai_client: Instance of OpenAIClient for generating changes.
+            work_directory: Directory to write files; defaults to CWD.
+            git_remote: Git remote name for pushing (e.g., 'origin').
+            git_branch: Git branch to push to.
         """
         self.client = openai_client
         self.work_directory = work_directory or os.getcwd()
@@ -33,82 +37,74 @@ class CodeExecutor:
 
     def execute(self, task_description: str) -> str:
         """
-        Generate and apply a unified diff patch to implement the given task.
-
-        Args:
-            task_description: Description of the task to perform.
+        Execute a task by requesting file changes and applying them.
 
         Returns:
-            The patch text that was applied.
+            A summary of applied files.
 
         Raises:
-            RuntimeError: If the patch fails to apply.
+            RuntimeError: If no valid function_call or JSON parse error.
         """
-        # Prepare prompts for patch generation
-        system_message = (
-            "You are an AI code generator. Generate a unified diff patch "
-            "to implement the following task in the repository."
+        # Define function schema for file changes
+        functions = [
+            {
+                "name": "apply_file_changes",
+                "description": "Write or update files as specified.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "changes": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string"},
+                                    "content": {"type": "string"}
+                                },
+                                "required": ["path", "content"]
+                            }
+                        }
+                    },
+                    "required": ["changes"]
+                }
+            }
+        ]
+        system_prompt = "You are an AI that generates file changes via function call."
+        user_prompt = (
+            f"Task: {task_description}. Provide a function_call to apply_file_changes."
         )
-        user_message = (
-            f"Task: {task_description}\n"
-            "Respond ONLY with the patch in unified diff format. Do not include any explanations."
-        )
-        # Request patch from OpenAI
-        patch_text = self.client.chat(
+        # Call AI with function definitions
+        message = self.client.chat(
             messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
-            temperature=0,
-            max_tokens=1500
+            functions=functions,
+            temperature=0
         )
-        # Apply patch via Git
+        # Validate function_call
+        if not hasattr(message, 'function_call') or message.function_call is None:
+            raise RuntimeError("AI did not return function_call for file changes.")
+        # Parse arguments
         try:
-            subprocess.run(
-                ["git", "apply", "-"],
-                input=patch_text.encode("utf-8"),
-                cwd=self.work_directory,
-                check=True
-            )
-        except subprocess.CalledProcessError as apply_error:
-            raise RuntimeError(f"Failed to apply patch: {apply_error}")
-        # Stage and commit changes
-        subprocess.run(
-            ["git", "add", "-A"],
-            cwd=self.work_directory,
-            check=True
-        )
-        commit_message = f"AI: {task_description}"[:50]
-        subprocess.run(
-            ["git", "commit", "-m", commit_message],
-            cwd=self.work_directory,
-            check=True
-        )
-        # Run test suite to validate changes
-        try:
-            subprocess.run(
-                ["pytest", "-q"],
-                cwd=self.work_directory,
-                check=True,
-                capture_output=True,
-                text=True
-            )
-        except subprocess.CalledProcessError as test_error:
-            # Roll back last commit if tests fail
-            subprocess.run(
-                ["git", "reset", "--hard", "HEAD~1"],
-                cwd=self.work_directory,
-                check=True
-            )
-            raise RuntimeError(
-                f"Tests failed after applying patch for task '{task_description}':\n"
-                f"{test_error.stdout}\n{test_error.stderr}"
-            )
-        # Push the new commit to the configured remote and branch
-        if self.git_remote and self.git_branch:
-            subprocess.run(
-                ["git", "push", self.git_remote, self.git_branch],
-                cwd=self.work_directory,
-                check=True
-            )
-        return patch_text
+            args = json.loads(message.function_call.arguments)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Invalid JSON in function_call arguments: {e}")
+        changes = args.get('changes')
+        if not isinstance(changes, list) or not changes:
+            raise RuntimeError("No file changes provided by AI.")
+        applied_files = []
+        for change in changes:
+            file_path = os.path.join(self.work_directory, change['path'])
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(change['content'])
+            applied_files.append(change['path'])
+        # Commit changes
+        subprocess.run(['git', 'add'] + applied_files, cwd=self.work_directory, check=True)
+        commit_msg = f"AI: {task_description}"[:50]
+        subprocess.run(['git', 'commit', '-m', commit_msg], cwd=self.work_directory, check=True)
+        # Push if configured
+        if self.git_remote:
+            subprocess.run(['git', 'push', self.git_remote, self.git_branch], cwd=self.work_directory, check=False)
+        return f"Applied changes to: {', '.join(applied_files)}"
