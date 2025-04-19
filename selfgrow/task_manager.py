@@ -134,33 +134,16 @@ class TaskManager:
             recent_diff = diff_proc.stdout
         except Exception:
             recent_diff = ""
+        # System prompt with function-calling instruction and context
         system_prompt = (
             f"{base_prompt}\n\n"
-            "You may call function generate_tasks(tasks) to enqueue follow-up tasks.\n"
-            f"Last result for '{previous_task_description}':\n{previous_task_result}\n"
-            f"Recent diff:\n{recent_diff}"
-        )
-        # Attempt to get diff of last commit
-        try:
-            import subprocess
-
-            diff_proc = subprocess.run(
-                ["git", "diff", "HEAD~1", "HEAD"],
-                cwd=os.getcwd(),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            recent_diff = diff_proc.stdout
-        except Exception:
-            recent_diff = ""
-        # Build user prompt with result and diff context
-        user_prompt = (
+            "You have access to generate_tasks(tasks). Use it to list next tasks.\n"
             f"Last task: {previous_task_description}\n"
-            f"Result:\n{previous_task_result}\n\n"
-            f"Recent changes (diff):\n{recent_diff}\n"
-            "Provide the next development tasks as a JSON array under 'tasks'."
+            f"Result of last task:\n{previous_task_result}\n\n"
+            f"Recent diff:\n{recent_diff}\n"
+            "Invoke generate_tasks with an array of two or more next tasks. Do not include other text."
         )
+        user_prompt = "Invoke generate_tasks with your array of next tasks."
         function_def = {
             "name": "generate_tasks",
             "description": "Returns the next set of tasks as a list of strings.",
